@@ -1,0 +1,50 @@
+name: Diagnostika — sayt turli joylardan ochiladimi
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "Tekshiriladigan host"
+        required: true
+        default: "fairvalue.fairvalueuz.workers.dev"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      HOST: ${{ inputs.host }}
+    steps:
+      - name: DNS (Google, Cloudflare, Quad9)
+        run: |
+          for ns in 8.8.8.8 1.1.1.1 9.9.9.9; do
+            echo "== @$ns"; dig +short "$HOST" A @"$ns" || true
+          done
+          echo "== workers.dev SOA (oxirgi raqam — 'topilmadi' javobi necha soniya keshlanadi)"
+          dig +short workers.dev SOA @8.8.8.8 || true
+
+      - name: HTTPS (GitHub serveridan)
+        run: |
+          for p in / /verify /admin; do
+            printf '%-8s ' "$p"; curl -s -o /dev/null -w '%{http_code}  %{time_total}s  ip=%{remote_ip}\n' "https://$HOST$p" || echo "XATO"
+          done
+
+      - name: Turli mamlakatlardan (check-host.net)
+        run: |
+          set +e
+          req=$(curl -s -H 'Accept: application/json' "https://check-host.net/check-http?host=https://$HOST/&max_nodes=40")
+          id=$(echo "$req" | jq -r '.request_id // empty')
+          [ -n "$id" ] || { echo "check-host so'rovi bajarilmadi: $req"; exit 0; }
+          sleep 25
+          res=$(curl -s -H 'Accept: application/json' "https://check-host.net/check-result/$id")
+          echo "$req" | jq -r '.nodes | to_entries[] | "\(.key)\t\(.value[1])\t\(.value[2])"' | sort -k2 > nodes.tsv
+          while IFS=$'\t' read -r node country city; do
+            r=$(echo "$res" | jq -c --arg n "$node" '.[$n]')
+            if [ "$r" = "null" ]; then status="(javob yo'q)"
+            else status=$(echo "$r" | jq -r '.[0] | if . == null then "kutilmoqda" else "\(.[0]|if .==1 then "OK" else "XATO" end) \(.[2] // "") \(.[3] // "")" end')
+            fi
+            printf '%-14s %-22s %s\n' "$country" "$city" "$status"
+          done < nodes.tsv | tee result.txt
+          { echo "## $HOST"; echo '```'; cat result.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
