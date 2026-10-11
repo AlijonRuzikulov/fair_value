@@ -66,3 +66,16 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; width: 100%; }
   body.printing .modal-head, body.printing .qr-actions, body.printing .modal-body > p { display: none !important; }
   body.printing .qr-sheet { border: 0; }
 }
+.set-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; align-items: start; }
+.set-card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: grid; gap: 14px; }
+.set-card h3 { margin: 0; font-size: 18px; }
+.set-card > p { margin: 0; font-size: 13px; }
+.img-slot > label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+.img-box { height: 140px; border: 1px dashed var(--line); border-radius: 12px; display: grid; place-items: center; background: repeating-conic-gradient(#f3f5f9 0% 25%, #fff 0% 50%) 50% / 16px 16px; overflow: hidden; }
+.img-box img { max-width: 90%; max-height: 120px; }
+.img-acts { display: flex; gap: 8px; margin-top: 8px; }
+.stamp-opts { background: var(--bg-soft); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.stamp-main { font-weight: 600; display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.stamp-opts.off #stampDetail, .stamp-opts.off #stampChecks { opacity: .45; pointer-events: none; }
+.pdf-frame { width: 100%; height: min(70vh, 760px); border: 1px solid var(--line); border-radius: 12px; background: #525659; }
+@media (max-width: 900px) { .set-grid { grid-template-columns: 1fr; } }

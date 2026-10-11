@@ -8,7 +8,7 @@
 
   let token = null;
   try { token = sessionStorage.getItem("fv_admin"); } catch (e) {}
-  let docs = [], leads = [], editing = null, qrDoc = null;
+  let docs = [], leads = [], editing = null, qrDoc = null, settings = null, readyUrl = null;
 
   function toast(text) {
     const el = $("toast");
@@ -33,7 +33,7 @@
   function showApp(on) {
     $("login").classList.toggle("hidden", on);
     $("app").classList.toggle("hidden", !on);
-    if (on) { loadDocs(); loadLeads(); } else $("pw").focus();
+    if (on) { loadDocs(); loadLeads(); loadSettings(); } else $("pw").focus();
   }
   function logout(silent) {
     if (!silent && token) api("/api/admin/logout", { method: "POST" }).catch(() => {});
@@ -79,6 +79,7 @@
         <td>${esc(d.issueDate || (d.createdAt || "").slice(0, 10))}</td>
         <td>${d.status === "revoked" ? '<span class="badge b-rev">Bekor qilingan</span>' : '<span class="badge b-ok">Amalda</span>'}${d.hasFile ? '<span class="badge b-file">PDF</span>' : ""}</td>
         <td class="acts">
+          ${d.hasFile ? `<a class="btn btn-light btn-sm" href="/api/verify/${esc(d.id)}/file" target="_blank" rel="noopener">PDF</a>` : ""}
           <button class="btn btn-dark btn-sm" data-qr="${esc(d.id)}">QR</button>
           <button class="btn btn-light btn-sm" data-edit="${esc(d.id)}">Tahrirlash</button>
           <button class="btn btn-light btn-sm" data-del="${esc(d.id)}" title="O'chirish">🗑</button>
@@ -134,10 +135,22 @@
     }
     $("fileState").textContent = doc && doc.hasFile ? "✓ PDF yuklangan (yangisini tanlasangiz almashtiriladi)" : "";
     $("rmFile").classList.toggle("hidden", !(doc && doc.hasFile));
+    const st = settings || {};
+    $("oStamp").checked = true;
+    $("oPages").value = st.qrPages || "last";
+    $("oCorner").value = st.qrCorner || "br";
+    const hasImgs = !!(st.signatureImg || st.stampImg);
+    $("oSig").checked = st.addSignature !== false && hasImgs;
+    $("oSig").disabled = !hasImgs;
+    $("oSigNote").textContent = hasImgs ? "" : "(«Imzo va QR» bo'limida rasm yuklanmagan)";
+    $("oSheet").checked = !!st.addSheet;
+    $("stampOpts").classList.remove("off");
     openModal("docModal");
     form.elements.number.focus();
   }
   $("newDoc").addEventListener("click", () => openDoc(null));
+  $("oStamp").addEventListener("change", () => $("stampOpts").classList.toggle("off", !$("oStamp").checked));
+  form.elements.file.addEventListener("change", () => { if (form.elements.file.files[0]) FVStamp.preload().catch(() => {}); });
 
   $("rmFile").addEventListener("click", async () => {
     if (!editing || !confirm("PDF faylni o'chirasizmi?")) return;
@@ -166,33 +179,145 @@
       return;
     }
     const file = form.elements.file.files[0];
-    if (file && (file.size > 10 * 1024 * 1024 || !/pdf$/i.test(file.type || file.name))) {
-      errBox.textContent = "Faqat PDF, 10 MB gacha.";
+    if (file && (file.size > 24 * 1024 * 1024 || !/pdf$/i.test(file.type || file.name))) {
+      errBox.textContent = "Faqat PDF, 24 MB gacha.";
       errBox.classList.remove("hidden");
       return;
     }
     const btn = $("saveDoc");
+    const wasNew = !editing;
     btn.disabled = true;
     try {
       let doc = editing
         ? (await api("/api/docs/" + editing.id, { method: "PUT", json: data })).doc
         : (await api("/api/docs", { method: "POST", json: data })).doc;
-      if (file) {
-        btn.textContent = "PDF yuklanmoqda…";
-        doc = (await api(`/api/docs/${doc.id}/file`, { method: "PUT", headers: { "Content-Type": "application/pdf" }, body: file })).doc;
+      if (wasNew) {
+        // Keyingi qadam (muhr qo'yish yoki yuklash) yiqilsa, qayta bosish yangi hujjat yaratmasin
+        editing = doc;
+        $("docTitle").textContent = "Hujjatni tahrirlash — " + doc.id;
+        $("editOnly").classList.remove("hidden");
       }
-      const isNew = !editing;
+      let ready = null;
+      if (file) {
+        let body = file, stamped = false;
+        if ($("oStamp").checked) {
+          btn.textContent = "QR va imzo qo'yilmoqda…";
+          body = new Blob([await stampFile(file, doc)], { type: "application/pdf" });
+          stamped = true;
+        }
+        btn.textContent = "PDF yuklanmoqda…";
+        doc = (await api(`/api/docs/${doc.id}/file`, { method: "PUT", headers: { "Content-Type": "application/pdf", "X-FV-Stamped": stamped ? "1" : "0" }, body })).doc;
+        ready = body;
+      }
       $("docModal").classList.add("hidden");
-      toast(isNew ? "Hujjat yaratildi: " + doc.id : "Saqlandi");
+      toast(wasNew ? "Hujjat yaratildi: " + doc.id : "Saqlandi");
       await loadDocs();
-      if (isNew) openQr(doc.id);
+      if (ready) openReady(doc, ready);
+      else if (wasNew) openQr(doc.id);
     } catch (ex) {
-      errBox.textContent = ex.message;
+      errBox.textContent = (wasNew && editing ? `Hujjat ${editing.id} yaratildi, lekin: ` : "") + ex.message;
       errBox.classList.remove("hidden");
+      if (wasNew && editing) loadDocs();
     } finally {
       btn.disabled = false;
       btn.textContent = editing ? "Saqlash" : "Saqlash va QR olish";
     }
+  });
+
+  /* ---------- tayyor hujjat (QR + imzo + muhr) ---------- */
+  async function stampFile(file, doc) {
+    const st = settings || {};
+    const opts = {
+      qrPages: $("oPages").value,
+      qrCorner: $("oCorner").value,
+      addSignature: $("oSig").checked,
+      addSheet: $("oSheet").checked,
+    };
+    const info = {
+      id: doc.id,
+      url: verifyUrl(doc.id),
+      number: doc.number,
+      typeLabel: TYPES[doc.type] || "",
+      title: doc.title,
+      client: doc.client,
+      issueDate: doc.issueDate,
+      qrPng: drawQr(verifyUrl(doc.id), 600).toDataURL("image/png"),
+      signerName: st.signerName,
+      signerTitle: st.signerTitle,
+      signatureImg: st.signatureImg,
+      stampImg: st.stampImg,
+    };
+    return FVStamp.stamp(await file.arrayBuffer(), info, opts);
+  }
+
+  async function sha256Hex(blob) {
+    const h = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+    return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function openReady(doc, blob) {
+    if (readyUrl) URL.revokeObjectURL(readyUrl);
+    readyUrl = URL.createObjectURL(blob);
+    $("readyTitle").textContent = "Tayyor hujjat — " + doc.id;
+    $("readyFrame").src = readyUrl;
+    $("readyDl").href = readyUrl;
+    $("readyDl").download = `${doc.id}.pdf`;
+    const local = await sha256Hex(blob);
+    $("readyHash").textContent = doc.sha256 === local ? local : `${doc.sha256 || "?"} (⚠ mahalliy nusxa bilan mos emas)`;
+    $("readyQr").onclick = () => { $("readyModal").classList.add("hidden"); openQr(doc.id); };
+    openModal("readyModal");
+  }
+
+  /* ---------- sozlamalar: imzo, muhr, QR joylashuvi ---------- */
+  async function loadSettings() {
+    try { settings = (await api("/api/settings")).settings; renderSettings(); } catch (e) { toast(e.message); }
+  }
+  function renderSettings(imagesOnly) {
+    const st = settings || {};
+    renderImages(st);
+    if (imagesOnly) return; // rasm yuklanganda saqlanmagan matn maydonlarini o'chirib yubormaslik uchun
+    $("sName").value = st.signerName || "";
+    $("sTitle").value = st.signerTitle || "";
+    $("sPages").value = st.qrPages || "last";
+    $("sCorner").value = st.qrCorner || "br";
+    $("sSig").checked = st.addSignature !== false;
+    $("sSheet").checked = !!st.addSheet;
+  }
+  function renderImages(st) {
+    for (const [box, key] of [["sigBox", "signatureImg"], ["stampBox", "stampImg"]]) {
+      $(box).innerHTML = st[key] ? `<img src="${st[key]}" alt="">` : '<span class="muted">Rasm yo\'q</span>';
+    }
+  }
+  async function saveSettings(patch, okText) {
+    const msg = $("setMsg");
+    try {
+      settings = (await api("/api/settings", { method: "PUT", json: patch })).settings;
+      renderSettings(!("signerName" in patch));
+      toast(okText || "Saqlandi");
+      msg.className = "alert hidden";
+    } catch (ex) {
+      msg.textContent = ex.message;
+      msg.className = "alert alert-err";
+    }
+  }
+  for (const [input, key, label] of [["sigFile", "signatureImg", "Imzo"], ["stampFile", "stampImg", "Muhr"]]) {
+    $(input).addEventListener("change", async () => {
+      const f = $(input).files[0];
+      $(input).value = "";
+      if (!f) return;
+      try { await saveSettings({ [key]: await FVStamp.prepareImage(f) }, label + " rasmi saqlandi"); }
+      catch (ex) { toast(ex.message); }
+    });
+  }
+  $("sigDel").addEventListener("click", () => confirm("Imzo rasmini o'chirasizmi?") && saveSettings({ signatureImg: "" }, "Imzo o'chirildi"));
+  $("stampDel").addEventListener("click", () => confirm("Muhr rasmini o'chirasizmi?") && saveSettings({ stampImg: "" }, "Muhr o'chirildi"));
+  $("setForm").addEventListener("submit", e => {
+    e.preventDefault();
+    saveSettings({
+      signerName: $("sName").value, signerTitle: $("sTitle").value,
+      qrPages: $("sPages").value, qrCorner: $("sCorner").value,
+      addSignature: $("sSig").checked, addSheet: $("sSheet").checked,
+    });
   });
 
   /* ---------- QR ---------- */

@@ -53,6 +53,7 @@
       d.issueDate && ["v.f.issue", esc(fmtDate(d.issueDate))],
       d.validUntil && ["v.f.valid", esc(fmtDate(d.validUntil))],
       d.status === "revoked" && d.revokeReason && ["v.f.reason", esc(d.revokeReason)],
+      d.sha256 && ["v.f.hash", `<span class="mono hash">${esc(d.sha256)}</span>`],
       ["v.f.checked", esc(fmtDate(d.verifiedAt))],
     ].filter(Boolean);
     out.innerHTML = `
@@ -62,11 +63,37 @@
         <dl>${rows.map(([k, v]) => `<dt>${t(k)}</dt><dd>${v}</dd>`).join("")}</dl>
         <div class="r-foot">
           ${d.hasFile && d.status !== "revoked" ? `<a class="btn btn-dark" href="${esc(d.fileUrl)}" target="_blank" rel="noopener">${FV.ICONS.file}<span>${t("v.pdf")}</span></a>` : ""}
+          ${d.sha256 ? `
+          <div class="fcheck">
+            <b>${t("v.fc.t")}</b>
+            <p>${t("v.fc.d")}</p>
+            <label class="btn btn-light btn-sm">${FV.ICONS.file}<span>${t("v.fc.btn")}</span><input type="file" accept="application/pdf,.pdf" id="fcInput" hidden></label>
+            <div id="fcResult"></div>
+          </div>` : ""}
           <div class="note">${t("v.note")}</div>
           <span class="stamp">${FV.ICONS.shield.replace("<svg", '<svg width="16" height="16"')} fairvalue.uz</span>
         </div>
       </div>`;
   }
+
+  let fcState = null; // { name, match } — til almashganda qayta chizish uchun
+  function renderFc() {
+    const box = document.getElementById("fcResult");
+    if (!box || !fcState) return;
+    const ok = fcState.match;
+    box.innerHTML = `<div class="fc-res ${ok ? "fc-ok" : "fc-bad"}">
+      <span class="big">${ok ? FV.ICONS.check : FV.ICONS.x}</span>
+      <div><b>${t(ok ? "v.fc.ok" : "v.fc.bad")}</b><p>${t(ok ? "v.fc.okd" : "v.fc.badd")}</p><small class="mono">${esc(fcState.name)}</small></div></div>`;
+  }
+  out.addEventListener("change", async e => {
+    if (e.target.id !== "fcInput" || !e.target.files[0] || !last || !last.doc) return;
+    const f = e.target.files[0];
+    e.target.value = "";
+    const h = await crypto.subtle.digest("SHA-256", await f.arrayBuffer());
+    const hex = [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join("");
+    fcState = { name: f.name, match: hex === last.doc.sha256 };
+    renderFc();
+  });
 
   async function check(rawId) {
     const id = FV.extractId(rawId);
@@ -77,6 +104,7 @@
     url.searchParams.delete("scan");
     history.replaceState(null, "", url);
     out.innerHTML = "";
+    fcState = null;
     showMsg("");
     loading.classList.remove("hidden");
     try {
@@ -127,7 +155,7 @@
   form.addEventListener("submit", e => { e.preventDefault(); stopScan(); check(input.value); });
   $("scanBtn").addEventListener("click", startScan);
   $("stopBtn").addEventListener("click", stopScan);
-  document.addEventListener("fv:lang", render);
+  document.addEventListener("fv:lang", () => { render(); renderFc(); });
 
   const params = new URLSearchParams(location.search);
   if (params.get("id")) check(params.get("id"));

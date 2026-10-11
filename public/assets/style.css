@@ -284,3 +284,15 @@ section { padding: 96px 0; }
 .center { text-align: center; }
 .muted { color: var(--ink-3); }
 .hidden { display: none !important; }
+.result .hash { font-size: 12px; word-break: break-all; font-weight: 500; }
+.fcheck { border: 1px dashed var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 8px; justify-items: start; }
+.fcheck p { margin: 0; font-size: 13px; color: var(--ink-2); }
+.fcheck .btn svg { width: 16px; height: 16px; }
+#fcResult { width: 100%; }
+.fc-res { display: flex; gap: 14px; align-items: flex-start; padding: 14px; border-radius: 12px; margin-top: 4px; }
+.fc-res .big { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.fc-res .big svg { width: 20px; height: 20px; color: #fff; }
+.fc-res p { margin: 2px 0 4px; font-size: 13px; color: var(--ink-2); }
+.fc-res small { font-size: 11px; color: var(--ink-3); word-break: break-all; }
+.fc-ok { background: var(--green-soft); } .fc-ok .big { background: var(--green); }
+.fc-bad { background: var(--red-soft); } .fc-bad .big { background: var(--red); }

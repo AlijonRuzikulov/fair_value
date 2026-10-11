@@ -13,6 +13,7 @@
 <script src="/assets/i18n.js" defer></script>
 <script src="/assets/layout.js" defer></script>
 <script src="/assets/vendor/qrcode-generator.js" defer></script>
+<script src="/assets/stamp.js" defer></script>
 <script src="/assets/admin.js" defer></script>
 </head>
 <body class="adm">
@@ -37,6 +38,7 @@
     <nav class="tabs">
       <button class="tab active" data-tab="docs">Hujjatlar <span class="pill" id="cntDocs">0</span></button>
       <button class="tab" data-tab="leads">Arizalar <span class="pill" id="cntLeads">0</span></button>
+      <button class="tab" data-tab="settings">Imzo va QR</button>
     </nav>
     <button class="btn btn-ghost btn-sm" id="logout">Chiqish</button>
   </header>
@@ -75,6 +77,50 @@
         </table>
         <div id="leadEmpty" class="empty hidden">Hozircha arizalar yo'q.</div>
       </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="tab-settings" class="tab-pane hidden">
+      <form class="set-grid" id="setForm" novalidate>
+        <div class="set-card">
+          <h3>Imzo va muhr</h3>
+          <p class="muted">Bu rasmlar hujjatga avtomatik qo'yiladi. Imzoni oq qog'ozga ko'k yoki qora ruchkada qo'ying, skanerlang yoki rasmga oling. Oq fon avtomatik olib tashlanadi.</p>
+          <div class="g2">
+            <div class="field"><label>Imzo qo'yuvchi F.I.Sh.</label><input id="sName" maxlength="120" placeholder="masalan: Karimov A.B."></div>
+            <div class="field"><label>Lavozimi</label><input id="sTitle" maxlength="120" placeholder="masalan: Direktor"></div>
+          </div>
+          <div class="g2">
+            <div class="img-slot">
+              <label>Imzo rasmi</label>
+              <div class="img-box" id="sigBox"><span class="muted">Rasm yo'q</span></div>
+              <div class="img-acts"><label class="btn btn-light btn-sm">Yuklash<input type="file" accept="image/png,image/jpeg" id="sigFile" hidden></label>
+              <button type="button" class="btn btn-light btn-sm" id="sigDel">O'chirish</button></div>
+            </div>
+            <div class="img-slot">
+              <label>Muhr rasmi</label>
+              <div class="img-box" id="stampBox"><span class="muted">Rasm yo'q</span></div>
+              <div class="img-acts"><label class="btn btn-light btn-sm">Yuklash<input type="file" accept="image/png,image/jpeg" id="stampFile" hidden></label>
+              <button type="button" class="btn btn-light btn-sm" id="stampDel">O'chirish</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="set-card">
+          <h3>Standart joylashuv</h3>
+          <p class="muted">Har bir yangi hujjat uchun shu sozlamalar tanlanadi. Hujjat yuklashda alohida o'zgartirish ham mumkin.</p>
+          <div class="g2">
+            <div class="field"><label>QR kod qaysi sahifada</label><select id="sPages">
+              <option value="last">Oxirgi sahifada</option><option value="all">Har bir sahifada</option><option value="first">Birinchi sahifada</option></select></div>
+            <div class="field"><label>Burchak</label><select id="sCorner">
+              <option value="br">Pastki o'ng</option><option value="bl">Pastki chap</option><option value="tr">Yuqori o'ng</option><option value="tl">Yuqori chap</option></select></div>
+          </div>
+          <div class="checks">
+            <label><input type="checkbox" id="sSig"> Oxirgi sahifaga imzo va muhr qo'yish</label>
+            <label><input type="checkbox" id="sSheet"> Hujjat oxiriga alohida «Tasdiq varag'i» qo'shish</label>
+          </div>
+          <div id="setMsg" class="alert hidden"></div>
+          <button class="btn btn-primary" type="submit">Saqlash</button>
+        </div>
+      </form>
     </section>
   </main>
 </div>
@@ -125,9 +171,23 @@
         </div>
       </div>
       <hr>
-      <div class="field"><label>Hujjatning PDF nusxasi (ixtiyoriy, 10 MB gacha)</label>
+      <div class="field"><label>Tayyor hujjat — PDF (24 MB gacha)</label>
         <div class="file-row"><input type="file" name="file" accept="application/pdf"><span id="fileState" class="muted"></span>
         <button type="button" class="btn btn-light btn-sm hidden" id="rmFile">PDF ni o'chirish</button></div>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">Word'dagi hisobotni avval «Fayl → Saqlash → PDF» qilib saqlang.</p>
+      </div>
+      <div class="stamp-opts" id="stampOpts">
+        <label class="stamp-main"><input type="checkbox" id="oStamp" checked> QR kod, imzo va muhrni hujjatga avtomatik qo'yish</label>
+        <div class="g2" id="stampDetail">
+          <div class="field"><label>QR kod</label><select id="oPages">
+            <option value="last">Oxirgi sahifada</option><option value="all">Har bir sahifada</option><option value="first">Birinchi sahifada</option></select></div>
+          <div class="field"><label>Burchak</label><select id="oCorner">
+            <option value="br">Pastki o'ng</option><option value="bl">Pastki chap</option><option value="tr">Yuqori o'ng</option><option value="tl">Yuqori chap</option></select></div>
+        </div>
+        <div class="checks" id="stampChecks">
+          <label><input type="checkbox" id="oSig"> Imzo va muhr <span class="muted" id="oSigNote"></span></label>
+          <label><input type="checkbox" id="oSheet"> Oxiriga «Tasdiq varag'i» qo'shish</label>
+        </div>
       </div>
       <div id="docErr" class="alert alert-err hidden"></div>
     </div>
@@ -136,6 +196,21 @@
       <button class="btn btn-primary" type="submit" id="saveDoc">Saqlash va QR olish</button>
     </div>
   </form>
+</div>
+
+<!-- READY DOC MODAL -->
+<div class="modal hidden" id="readyModal">
+  <div class="modal-box" style="max-width:980px">
+    <div class="modal-head"><h2 id="readyTitle">Tayyor hujjat</h2><button type="button" class="x" data-close>×</button></div>
+    <div class="modal-body">
+      <iframe id="readyFrame" class="pdf-frame" title="PDF"></iframe>
+      <p class="muted" style="font-size:12px;margin:0">SHA-256: <span class="mono" id="readyHash"></span></p>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-light" id="readyQr">QR kodni alohida olish</button>
+      <a class="btn btn-primary" id="readyDl" download>PDF ni yuklab olish</a>
+    </div>
+  </div>
 </div>
 
 <!-- QR MODAL -->

@@ -51,6 +51,17 @@ c=$(code -X PUT "$B/api/docs/$ID/file" -H "Authorization: Bearer $TOKEN" -H 'Con
 c=$(code -X PUT "$B/api/docs/$ID/file" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/pdf' --data-binary 'not a pdf')
 [ "$c" = 400 ] && ok "PDF bo'lmagan fayl rad etildi" || bad "PDF bo'lmagan fayl → $c"
 wait_for "PDF tekshiruv sahifasida ko'rinadi" '.doc.hasFile == true and (.doc.fileUrl | length > 0)' "$B/api/verify/$ID"
+SHA=$(sha256sum /tmp/fv-test.pdf | cut -d' ' -f1)
+wait_for "PDF raqamli izi (SHA-256) to'g'ri saqlangan" ".doc.sha256 == \"$SHA\"" "$B/api/verify/$ID"
+got=$(curl -s "$B/api/verify/$ID/file" | sha256sum | cut -d' ' -f1)
+[ "$got" = "$SHA" ] && ok "Yuklab olingan PDF asl nusxa bilan bir xil" || bad "Yuklab olingan PDF izi: $got"
+
+echo "== Imzo va QR sozlamalari"
+c=$(code "$B/api/settings"); [ "$c" = 401 ] && ok "Tokensiz /api/settings → 401" || bad "Tokensiz /api/settings → $c"
+st=$(curl -s "$B/api/settings" "${AUTH[@]}")
+echo "$st" | jq -e '.settings | has("qrPages") and has("signatureImg")' >/dev/null && ok "Sozlamalar o'qiladi" || bad "Sozlamalar: $st"
+c=$(code -X PUT "$B/api/settings" "${AUTH[@]}" -d '{"signatureImg":"data:text/html;base64,PHNjcmlwdD4="}')
+[ "$c" = 400 ] && ok "Rasm bo'lmagan imzo rad etildi" || bad "Noto'g'ri imzo rasmi → $c"
 
 echo "== Bekor qilish"
 c=$(code -X PUT "$B/api/docs/$ID" "${AUTH[@]}" -d '{"status":"revoked","revokeReason":"Avtomatik test"}')

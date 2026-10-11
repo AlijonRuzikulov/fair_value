@@ -23,6 +23,23 @@ Sayt 3 tilda: O'zbek (lotin), Ўзбек (кирилл), Русский.
    - ❌ **Topilmadi** — soxta hujjat.
 5. Ixtiyoriy: hujjatning asl PDF nusxasi yuklansa, tekshiruvchi uni ko'rib solishtira oladi.
 
+## Tayyor hujjatni QR, imzo va muhr bilan chiqarish
+
+1. **Admin → «Imzo va QR»**: imzo qo'yuvchi F.I.Sh. va lavozimi, imzo va muhr rasmlari
+   (oq fon avtomatik olib tashlanadi), standart QR joylashuvi.
+2. **Admin → «+ Yangi hujjat»**: ma'lumotlarni to'ldiring va tayyor hisobotni PDF qilib tanlang
+   (Word'da: *Fayl → Saqlash → PDF*).
+3. «Saqlash» bosilganda brauzerning o'zida PDF ga qo'yiladi:
+   - QR kod bloki (oxirgi / har bir / birinchi sahifa, tanlangan burchakda);
+   - oxirgi sahifaga imzo va muhr (ixtiyoriy);
+   - oxiriga «Tasdiq varag'i» — hujjat ma'lumotlari, katta QR, imzo va muhr (ixtiyoriy).
+4. Tayyor PDF serverga saqlanadi, uning SHA-256 izi yoziladi va admin uni ko'rib, yuklab oladi.
+5. Tekshiruvchi `/verify` sahifasida qo'lidagi PDF ni tanlab, uning asl nusxa bilan
+   **aynan bir xil** ekanini tekshira oladi (fayl brauzerdan chiqmaydi).
+
+Kutubxonalar (`public/assets/vendor/`): pdf-lib (MIT), @pdf-lib/fontkit (MIT),
+DejaVu Sans — lotin va kirill harflari bilan qisqartirilgan (bepul litsenziya).
+
 ## Joylash (deploy)
 
 ```bash
@@ -60,7 +77,7 @@ fair_value/
 ## Avtomatik deploy (GitHub Actions)
 
 `.github/workflows/deploy.yml` har push'da saytni Cloudflare'ga joylaydi va
-`smoke-test.sh` bilan tekshiradi (hujjat yaratish → QR → bekor qilish → o'chirish).
+`smoke-test.sh` bilan tekshiradi (hujjat yaratish → QR → PDF va SHA-256 → sozlamalar → bekor qilish → o'chirish).
 Repo **Settings → Secrets and variables → Actions** bo'limiga qo'shing:
 
 | Secret | Qiymat |

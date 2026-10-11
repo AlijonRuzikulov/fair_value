@@ -25,20 +25,24 @@
  *   DELETE /api/docs/:id
  *   PUT    /api/docs/:id/file   -> PDF yuklash (body = application/pdf)
  *   DELETE /api/docs/:id/file
+ *   GET    /api/settings        -> imzo, muhr va QR joylashuvi sozlamalari
+ *   PUT    /api/settings
  *   GET    /api/leads           -> saytdan kelgan arizalar
  *   PUT    /api/leads/:id       { done }
  *   DELETE /api/leads/:id
  *
  * KV tuzilmasi:
  *   doc:<ID>     hujjat JSON (metadata'da qisqa ma'lumot — ro'yxat uchun)
- *   file:<ID>    PDF (ArrayBuffer)
+ *   file:<ID>    PDF (ArrayBuffer); hujjatda sha256 — tekshiruvchi faylni solishtirishi uchun
+ *   settings     imzo/muhr rasmlari va QR sozlamalari (faqat admin uchun)
  *   lead:<ts-rand>  ariza JSON
  *   token:<t>    "admin" (TTL 12 soat)
  *   rl:<ip>      login urinishlari hisoblagichi (TTL 15 daqiqa)
  */
 
 const TOKEN_TTL = 60 * 60 * 12;
-const MAX_FILE = 10 * 1024 * 1024;
+const MAX_FILE = 24 * 1024 * 1024; // KV qiymati chegarasi 25 MiB
+const MAX_IMG = 400 * 1024;          // imzo/muhr rasmi (data URL)
 const ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 0/O, 1/I chalkashmasligi uchun
 const DOC_TYPES = ["valuation", "business_plan", "teo", "import", "audit", "other"];
 const STATUSES = ["valid", "revoked"];
@@ -90,6 +94,33 @@ function sanitizeDoc(input, prev = {}) {
   if (!d.currency) d.currency = "UZS";
   return d;
 }
+async function sha256Hex(buf) {
+  const h = await crypto.subtle.digest("SHA-256", buf);
+  return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+const SETTINGS_DEFAULT = {
+  signerName: "", signerTitle: "", signatureImg: "", stampImg: "",
+  qrPages: "last", qrCorner: "br", addSignature: true, addSheet: false,
+};
+function sanitizeSettings(input, prev) {
+  const s = { ...SETTINGS_DEFAULT, ...prev };
+  if ("signerName" in input) s.signerName = str(input.signerName, 120);
+  if ("signerTitle" in input) s.signerTitle = str(input.signerTitle, 120);
+  for (const k of ["signatureImg", "stampImg"]) {
+    if (!(k in input)) continue;
+    const v = String(input[k] || "");
+    if (v && !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(v)) throw new Error("Rasm PNG yoki JPEG bo'lishi kerak");
+    if (v.length > MAX_IMG) throw new Error("Rasm hajmi 300 KB dan oshmasin");
+    s[k] = v;
+  }
+  if (["last", "all", "first"].includes(input.qrPages)) s.qrPages = input.qrPages;
+  if (["br", "bl", "tr", "tl"].includes(input.qrCorner)) s.qrCorner = input.qrCorner;
+  if ("addSignature" in input) s.addSignature = !!input.addSignature;
+  if ("addSheet" in input) s.addSheet = !!input.addSheet;
+  return s;
+}
+
 const docMeta = d => ({
   number: d.number, type: d.type, client: d.client, issueDate: d.issueDate,
   status: d.status, createdAt: d.createdAt, hasFile: !!d.hasFile,
@@ -114,6 +145,7 @@ function publicView(d, origin) {
     status: d.status === "revoked" ? "revoked" : expired ? "expired" : "valid",
     revokeReason: d.status === "revoked" ? d.revokeReason || "" : undefined,
     hasFile: !!d.hasFile,
+    sha256: d.hasFile && d.status !== "revoked" ? d.sha256 || null : null,
     fileUrl: d.hasFile && d.status !== "revoked" ? `${origin}/api/verify/${d.id}/file` : null,
     verifiedAt: new Date().toISOString(),
   };
@@ -209,6 +241,19 @@ async function handleApi(req, env, url) {
     return j({ ok: true });
   }
 
+  if (path === "/api/settings") {
+    const prev = (await kv.get("settings", "json")) || {};
+    if (m === "GET") return j({ settings: { ...SETTINGS_DEFAULT, ...prev } });
+    if (m === "PUT") {
+      const b = await req.json().catch(() => null);
+      if (!b) return err("Noto'g'ri so'rov");
+      let settings;
+      try { settings = sanitizeSettings(b, prev); } catch (e) { return err(e.message); }
+      await kv.put("settings", JSON.stringify(settings));
+      return j({ settings });
+    }
+  }
+
   if (path === "/api/docs" && m === "GET") {
     const keys = await listAll(kv, "doc:");
     const docs = keys.map(k => ({ id: k.name.slice(4), ...(k.metadata || {}) }));
@@ -240,16 +285,21 @@ async function handleApi(req, env, url) {
     if (parts[3] === "file") {
       if (m === "PUT") {
         const len = parseInt(req.headers.get("Content-Length") || "0", 10);
-        if (len > MAX_FILE) return err("Fayl 10 MB dan oshmasligi kerak", 413);
+        if (len > MAX_FILE) return err("Fayl 24 MB dan oshmasligi kerak", 413);
         const buf = await req.arrayBuffer();
-        if (buf.byteLength > MAX_FILE) return err("Fayl 10 MB dan oshmasligi kerak", 413);
+        if (buf.byteLength > MAX_FILE) return err("Fayl 24 MB dan oshmasligi kerak", 413);
         const head = new Uint8Array(buf.slice(0, 5));
         if (String.fromCharCode(...head) !== "%PDF-") return err("Faqat PDF fayl qabul qilinadi");
         await kv.put("file:" + id, buf);
         doc.hasFile = true;
+        doc.sha256 = await sha256Hex(buf);
+        doc.fileSize = buf.byteLength;
+        doc.fileUploadedAt = new Date().toISOString();
+        doc.stamped = req.headers.get("X-FV-Stamped") === "1";
       } else if (m === "DELETE") {
         await kv.delete("file:" + id);
         doc.hasFile = false;
+        delete doc.sha256; delete doc.fileSize; delete doc.fileUploadedAt; delete doc.stamped;
       } else return err("Method not allowed", 405);
       doc.updatedAt = new Date().toISOString();
       await kv.put("doc:" + id, JSON.stringify(doc), { metadata: docMeta(doc) });
