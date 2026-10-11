@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="uz-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin panel — Fair Value</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/admin.css">
+<script src="/assets/config.js" defer></script>
+<script src="/assets/i18n.js" defer></script>
+<script src="/assets/layout.js" defer></script>
+<script src="/assets/vendor/qrcode-generator.js" defer></script>
+<script src="/assets/admin.js" defer></script>
+</head>
+<body class="adm">
+
+<!-- LOGIN -->
+<div id="login" class="login hidden">
+  <form class="login-box" id="loginForm">
+    <img src="/assets/logo.svg" alt="" width="56" height="56">
+    <h1>Fair Value</h1>
+    <p class="muted">Admin paneliga kirish</p>
+    <div class="field"><label for="pw">Parol</label><input id="pw" type="password" autocomplete="current-password" required></div>
+    <div id="loginErr" class="alert alert-err hidden"></div>
+    <button class="btn btn-dark" type="submit" style="width:100%">Kirish</button>
+    <a href="/" class="muted" style="font-size:13px">← Saytga qaytish</a>
+  </form>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header class="adm-top">
+    <a class="brand" href="/" target="_blank"><img src="/assets/logo.svg" alt="" width="36" height="36"><span><b>FAIR VALUE</b><small>Admin panel</small></span></a>
+    <nav class="tabs">
+      <button class="tab active" data-tab="docs">Hujjatlar <span class="pill" id="cntDocs">0</span></button>
+      <button class="tab" data-tab="leads">Arizalar <span class="pill" id="cntLeads">0</span></button>
+    </nav>
+    <button class="btn btn-ghost btn-sm" id="logout">Chiqish</button>
+  </header>
+
+  <main class="adm-main">
+    <!-- DOCS -->
+    <section id="tab-docs" class="tab-pane">
+      <div class="stats">
+        <div class="stat"><small>Jami hujjatlar</small><b id="stTotal">0</b></div>
+        <div class="stat"><small>Amalda</small><b id="stValid" style="color:var(--green)">0</b></div>
+        <div class="stat"><small>Bekor qilingan</small><b id="stRev" style="color:var(--red)">0</b></div>
+        <div class="stat"><small>PDF yuklangan</small><b id="stFile">0</b></div>
+      </div>
+      <div class="toolbar">
+        <input id="search" class="search" placeholder="Qidirish: ID, raqam, buyurtmachi…">
+        <select id="fStatus" class="search" style="max-width:180px">
+          <option value="">Barcha holatlar</option><option value="valid">Amalda</option><option value="revoked">Bekor qilingan</option>
+        </select>
+        <button class="btn btn-primary" id="newDoc">+ Yangi hujjat</button>
+      </div>
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th>ID</th><th>Raqam</th><th>Turi</th><th>Buyurtmachi</th><th>Sana</th><th>Holat</th><th></th></tr></thead>
+          <tbody id="docRows"></tbody>
+        </table>
+        <div id="docEmpty" class="empty hidden">Hozircha hujjatlar yo'q. «+ Yangi hujjat» tugmasini bosing.</div>
+      </div>
+    </section>
+
+    <!-- LEADS -->
+    <section id="tab-leads" class="tab-pane hidden">
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th>Sana</th><th>Ism</th><th>Telefon</th><th>Xizmat</th><th>Xabar</th><th>Holat</th><th></th></tr></thead>
+          <tbody id="leadRows"></tbody>
+        </table>
+        <div id="leadEmpty" class="empty hidden">Hozircha arizalar yo'q.</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- DOC MODAL -->
+<div class="modal hidden" id="docModal">
+  <form class="modal-box" id="docForm" novalidate>
+    <div class="modal-head"><h2 id="docTitle">Yangi hujjat</h2><button type="button" class="x" data-close>×</button></div>
+    <div class="modal-body">
+      <div class="g2">
+        <div class="field"><label>Hujjat raqami *</label><input name="number" required maxlength="60" placeholder="masalan: 125/2026"></div>
+        <div class="field"><label>Hujjat turi</label>
+          <select name="type">
+            <option value="valuation">Baholash hisoboti</option>
+            <option value="business_plan">Biznes loyiha</option>
+            <option value="teo">TEO</option>
+            <option value="import">Import shartnomasi bo'yicha ekspert xulosasi</option>
+            <option value="audit">Audit xulosasi</option>
+            <option value="other">Boshqa</option>
+          </select></div>
+      </div>
+      <div class="field"><label>Nomi / sarlavha</label><input name="title" maxlength="200" placeholder="masalan: Turar-joy kvartirasining bozor qiymatini baholash"></div>
+      <div class="g2">
+        <div class="field"><label>Buyurtmachi *</label><input name="client" required maxlength="200" placeholder="F.I.Sh. yoki tashkilot nomi"></div>
+        <div class="field"><label>Baholovchi</label><input name="appraiser" maxlength="120"></div>
+      </div>
+      <div class="field"><label>Baholash obyekti</label><textarea name="object" maxlength="500" rows="2"></textarea></div>
+      <div class="field"><label>Obyekt manzili</label><input name="address" maxlength="300"></div>
+      <div class="g3">
+        <div class="field"><label>Qiymati</label><input name="value" maxlength="40" inputmode="decimal" placeholder="850000000"></div>
+        <div class="field"><label>Valyuta</label><select name="currency"><option>UZS</option><option>USD</option><option>EUR</option><option>RUB</option></select></div>
+        <div class="field"><label>Maqsadi</label><input name="purpose" maxlength="200" placeholder="Bank krediti uchun garov"></div>
+      </div>
+      <div class="g2">
+        <div class="field"><label>Berilgan sana</label><input name="issueDate" type="date"></div>
+        <div class="field"><label>Amal qilish muddati (ixtiyoriy)</label><input name="validUntil" type="date"></div>
+      </div>
+      <div class="field"><label>Ichki izoh (saytda ko'rinmaydi)</label><textarea name="note" maxlength="1000" rows="2"></textarea></div>
+      <div class="checks">
+        <label><input type="checkbox" name="showValue" checked> Qiymatni tekshirish sahifasida ko'rsatish</label>
+        <label><input type="checkbox" name="maskClient" checked> Buyurtmachi ismini yashirish (A***** R*****)</label>
+      </div>
+      <div id="editOnly" class="hidden">
+        <hr>
+        <div class="g2">
+          <div class="field"><label>Holat</label><select name="status"><option value="valid">Amalda</option><option value="revoked">Bekor qilingan</option></select></div>
+          <div class="field"><label>Bekor qilish sababi</label><input name="revokeReason" maxlength="300"></div>
+        </div>
+      </div>
+      <hr>
+      <div class="field"><label>Hujjatning PDF nusxasi (ixtiyoriy, 10 MB gacha)</label>
+        <div class="file-row"><input type="file" name="file" accept="application/pdf"><span id="fileState" class="muted"></span>
+        <button type="button" class="btn btn-light btn-sm hidden" id="rmFile">PDF ni o'chirish</button></div>
+      </div>
+      <div id="docErr" class="alert alert-err hidden"></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-light" data-close>Bekor qilish</button>
+      <button class="btn btn-primary" type="submit" id="saveDoc">Saqlash va QR olish</button>
+    </div>
+  </form>
+</div>
+
+<!-- QR MODAL -->
+<div class="modal hidden" id="qrModal">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-head"><h2>QR kod</h2><button type="button" class="x" data-close>×</button></div>
+    <div class="modal-body center">
+      <div id="qrSheet" class="qr-sheet">
+        <div id="qrBox"></div>
+        <div class="qr-cap">FAIR VALUE · HUJJATNI TEKSHIRISH</div>
+        <div class="qr-id mono" id="qrId"></div>
+      </div>
+      <p class="muted" style="font-size:13px;word-break:break-all" id="qrUrl"></p>
+      <div class="qr-actions">
+        <button class="btn btn-dark btn-sm" id="qrPng">PNG yuklab olish</button>
+        <button class="btn btn-light btn-sm" id="qrPrint">Chop etish</button>
+        <button class="btn btn-light btn-sm" id="qrCopy">Havolani nusxalash</button>
+        <a class="btn btn-light btn-sm" id="qrOpen" target="_blank">Tekshirib ko'rish ↗</a>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:16px">Ushbu QR kodni hisobotning birinchi yoki oxirgi sahifasiga joylashtiring (kamida 2×2 sm).</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+</body>
+</html>

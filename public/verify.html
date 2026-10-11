@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="uz-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hujjatni tekshirish — Fair Value</title>
+<meta name="description" content="Fair Value tomonidan berilgan hujjatning haqiqiyligini QR kod yoki ID raqami orqali tekshiring.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#08162e">
+<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/config.js" defer></script>
+<script src="/assets/i18n.js" defer></script>
+<script src="/assets/layout.js" defer></script>
+<script src="/assets/vendor/html5-qrcode.min.js" defer></script>
+<script src="/assets/verify.js" defer></script>
+</head>
+<body class="verify-page">
+<div id="site-header"></div>
+
+<div class="verify-hero">
+  <div class="hero-bg" aria-hidden="true"><span></span><span></span></div>
+  <div class="container" style="position:relative">
+    <span class="kicker" data-i18n="v.kicker"></span>
+    <h1 data-i18n="v.title"></h1>
+    <p data-i18n="v.sub"></p>
+  </div>
+</div>
+
+<main class="verify-main">
+  <div class="container">
+    <div class="v-box">
+      <form class="verify-form" id="vForm">
+        <input id="vId" name="id" autocomplete="off" spellcheck="false" data-i18n-ph="qr.ph" aria-label="ID">
+        <button class="btn btn-dark" type="submit" data-i18n="qr.btn"></button>
+      </form>
+      <div class="center">
+        <button class="link-btn" id="scanBtn" type="button" style="color:var(--blue-600)"><span data-icon="camera" style="display:contents"></span><span data-i18n="qr.scan"></span></button>
+        <button class="link-btn hidden" id="stopBtn" type="button" style="color:var(--red)"><span data-icon="x" style="display:contents"></span><span data-i18n="v.stop"></span></button>
+      </div>
+      <div id="reader" class="hidden"></div>
+      <div id="vMsg" class="alert alert-err hidden" style="margin-top:14px"></div>
+    </div>
+
+    <div id="vLoading" class="center hidden" style="padding:30px"><span class="spinner"></span> <span data-i18n="v.loading"></span></div>
+    <div id="vResult"></div>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+</body>
+</html>

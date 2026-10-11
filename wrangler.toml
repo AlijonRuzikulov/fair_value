@@ -1,0 +1,14 @@
+name = "fairvalue"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+html_handling = "drop-trailing-slash"
+not_found_handling = "404-page"
+
+[[kv_namespaces]]
+binding = "FV_KV"
+id = "d2787ce38a884e25999c69a9ab9d16de"
