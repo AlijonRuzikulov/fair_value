@@ -1,4 +1,4 @@
-name: Cloudflare — workers.dev subdomenini o'zgartirish
+name: Cloudflare — workers.dev subdomeni (o'rnatish va tekshirish)
 
 # Qo'lda ishga tushiriladi: Actions → shu workflow → Run workflow.
 # Diqqat: subdomen butun akkauntga tegishli — akkauntdagi BARCHA Worker'larning
@@ -46,7 +46,12 @@ jobs:
             -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
             -d "$(jq -nc --arg s "$NEW_SUB" '{subdomain:$s}')")
           if [ "$(echo "$resp" | jq -r '.success')" != "true" ]; then
-            echo "::error::Subdomenni o'zgartirib bo'lmadi"; echo "$resp" | jq -c '.errors'; exit 1
+            if echo "$resp" | jq -e '.errors[]? | select(.code == 10036)' >/dev/null; then
+              echo "::error::Mavjud subdomenni API orqali o'zgartirib bo'lmaydi. Cloudflare dashboard → Workers & Pages → 'Your subdomain' yonidagi Change → $NEW_SUB. Keyin shu workflow'ni qayta ishga tushiring — u yangi manzilni tekshiradi."
+            else
+              echo "::error::Subdomenni o'zgartirib bo'lmadi"; echo "$resp" | jq -c '.errors'
+            fi
+            exit 1
           fi
           echo "Yangi subdomen: $(echo "$resp" | jq -r '.result.subdomain')"
 
