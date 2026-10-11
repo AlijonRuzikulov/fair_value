@@ -22,7 +22,8 @@ for p in / /verify /admin /assets/style.css /assets/vendor/html5-qrcode.min.js /
   c=$(code "$B$p"); [ "$c" = 200 ] && ok "GET $p → 200" || bad "GET $p → $c"
 done
 c=$(code "$B/bunday-sahifa-yoq"); [ "$c" = 404 ] && ok "Noma'lum sahifa → 404" || bad "Noma'lum sahifa → $c"
-curl -s "$B/" | grep -q "FAIR VALUE" && ok "Bosh sahifada FAIR VALUE bor" || bad "Bosh sahifa mazmuni"
+home=$(curl -s "$B/")
+grep -q "FAIR VALUE" <<<"$home" && ok "Bosh sahifada FAIR VALUE bor" || bad "Bosh sahifa mazmuni"
 
 echo "== Admin kirish"
 c=$(code -X POST "$B/api/admin/login" -H 'Content-Type: application/json' -d '{"password":"notogri-parol"}')
