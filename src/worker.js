@@ -11,6 +11,7 @@
  *
  * Ochiq endpointlar:
  *   GET  /v/:id                 -> 302 /verify?id=:id   (QR kod shu manzilga olib keladi)
+ *   GET  /api/health            -> { ok, version } — deploy'dan keyin yangi versiyani kutish uchun
  *   GET  /api/verify/:id        -> hujjat holati va asosiy ma'lumotlari
  *   GET  /api/verify/:id/file   -> hujjatning PDF nusxasi (agar yuklangan bo'lsa)
  *   POST /api/contact           { name, phone, service, message }
@@ -177,6 +178,10 @@ async function handleApi(req, env, url) {
   const parts = path.split("/").filter(Boolean); // ["api", ...]
 
   /* ---------- ochiq ---------- */
+  if (path === "/api/health" && m === "GET") {
+    return j({ ok: true, version: (env.CF_VERSION_METADATA && env.CF_VERSION_METADATA.id) || null });
+  }
+
   if (parts[1] === "verify" && parts[2] && m === "GET") {
     const id = normalizeId(parts[2]);
     const raw = await kv.get("doc:" + id);
@@ -193,6 +198,15 @@ async function handleApi(req, env, url) {
           "Cache-Control": "no-store",
         },
       });
+    }
+    if (doc.hasFile && !doc.sha256) {
+      // SHA-256 saqlanmagan (eski yoki deploy paytida yuklangan) fayl uchun izni bir marta hisoblab qo'yamiz
+      const file = await kv.get("file:" + id, "arrayBuffer");
+      if (file) {
+        doc.sha256 = await sha256Hex(file);
+        doc.fileSize = file.byteLength;
+        await kv.put("doc:" + id, JSON.stringify(doc), { metadata: docMeta(doc) });
+      }
     }
     return j({ found: true, doc: publicView(doc, url.origin) });
   }

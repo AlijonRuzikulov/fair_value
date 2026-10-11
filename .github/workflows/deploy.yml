@@ -40,13 +40,22 @@ jobs:
           url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
           [ -n "$url" ] || { echo "::error::Deploy manzili topilmadi"; exit 1; }
           echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "version=$(grep -oE 'Current Version ID: [0-9a-f-]+' deploy.log | awk '{print $4}')" >> "$GITHUB_OUTPUT"
 
       - name: Admin parolini o'rnatish
         run: printf '%s' "$ADMIN_PASSWORD" | npx --yes wrangler@4 secret put ADMIN_PASSWORD
 
       - name: Saytni tekshirish
         run: |
-          sleep 10
+          # Yangi versiya haqiqatan javob bera boshlaguncha kutamiz (aks holda eski kod tekshiriladi)
+          want="${{ steps.deploy.outputs.version }}"
+          for i in $(seq 1 40); do
+            got=$(curl -s "${{ steps.deploy.outputs.url }}/api/health" | jq -r '.version // empty' || true)
+            echo "[$i] versiya: ${got:-?} (kutilmoqda: $want)"
+            [ -n "$want" ] && [ "$got" = "$want" ] && break
+            [ -z "$want" ] && { sleep 15; break; }
+            sleep 3
+          done
           ./smoke-test.sh "${{ steps.deploy.outputs.url }}" | tee smoke.log
           status=${PIPESTATUS[0]}
           {
